@@ -100,7 +100,8 @@ function place(e, root) {
 // target with a liquid neck. A target more than `near` px right of the spine is
 // bridged from the target beside it in its row instead. The line draws once,
 // as far as the reader has scrolled, and never undraws. Hovering, focusing or
-// tapping a target lights its branch and swells its neck, and sets `data-lit`
+// tapping a target lights every connection it touches (the branch into it and
+// any bridge out of it) and swells their necks, and sets `data-lit`
 // on it so the site can light its border too. `root` must be positioned, and
 // its children stacked above the trace. Returns a function that unmounts it.
 //   [data-trace-origin]  where the spine starts (its center x)
@@ -133,7 +134,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
         const ey = b.y + (accent ? b.h / 2 : entry);
         if (b.x - sx < near) return { el: b.e, sy: ey, ex: b.x, ey, accent };
         const left = boxes.filter((o) => o.x + o.w <= b.x && o.y < ey && o.y + o.h > ey).sort((a, c) => c.x + c.w - (a.x + a.w))[0];
-        return left && { el: b.e, sy: ey, from: left.x + left.w, ex: b.x, ey, accent };
+        return left && { el: b.e, src: left.e, sy: ey, from: left.x + left.w, ex: b.x, ey, accent };
       })
       .filter(Boolean)
       .sort((a, b) => a.sy - b.sy);
@@ -192,7 +193,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   const motion = loop((dt, t) => {
     let moving = false;
     for (const it of items) {
-      const to = !it.done ? 0 : it.t.el === litEl ? lit : rest;
+      const to = !it.done ? 0 : touches(it) ? lit : rest;
       if (still()) it.r.x = to;
       else moving = move(it.r, to, dt, t, { tween, k: 260, c: 11 }) || moving;
       const r = clamp(it.r.x, 0, it.cap);
@@ -202,9 +203,10 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   });
 
   // MARK: Lighting
-  // decorative only: one target lit at a time
+  // decorative only: one target lit at a time, with every connection it touches
+  const touches = (it) => litEl !== null && (it.t.el === litEl || it.t.src === litEl);
   const light = (it) => {
-    const on = it.t.el === litEl;
+    const on = touches(it);
     it.path.style.stroke = on ? hot : base;
     it.path.style.strokeWidth = on ? 2 : 1.5;
     for (const k of it.necks) k.p.style.fill = on || it.t.accent ? hot : base;

@@ -7,8 +7,9 @@ ink as possible. Plain DOM and SVG, no framework, no dependencies. Used by
 - **Trace:** one hairline from an origin element down the page's gutter,
   branching into each card through a liquid neck. A card beside another is
   bridged across the gap, necked at both ends. It draws once as the reader
-  scrolls and never undraws; hovering, focusing or tapping a card lights its
-  branch and swells its neck.
+  scrolls and never undraws; hovering, focusing or tapping a card lights every
+  connection it touches (the branch into it and any bridge out of it) and
+  swells their necks.
 - **Ink:** the selected chip, tab or link is liquid ink. When the selection
   changes, the old item gathers into a drop on the side facing the new one,
   pinches off and follows the ink in.
@@ -19,7 +20,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.2.0
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.3.0
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have
