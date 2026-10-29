@@ -103,7 +103,8 @@ function place(e, root) {
 // tapping a target lights the whole connected trace by distance: the
 // connections it touches in full, and each hop further keeps only `fade` of the
 // lit color (mixed toward the trace color, so hue and saturation drain) and of
-// the neck swell. It also sets `data-lit` on the target so the site can light
+// the neck swell. Each neck is colored by the card it meets, so a bridge pours
+// out of a lit card and into its neighbour's fainter color. It also sets `data-lit` on the target so the site can light
 // its border too. `root` must be positioned, and its children stacked above
 // the trace. Returns a function that unmounts it.
 //   [data-trace-origin]  where the spine starts (its center x)
@@ -167,7 +168,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       const nodes = bridge
         ? []
         : [el("circle", { cx: sx, cy: t.sy, r: 5, fill: "none", "stroke-width": 0.75, style: `stroke:${base};${pop}` }, svg), el("circle", { cx: sx, cy: t.sy, r: 2.5, style: `fill:${base};${pop}` }, svg)];
-      const necks = [[t.ex, "left"], ...(bridge ? [[t.from, "right"]] : [])].map(([x, side]) => ({ x, side, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg) }));
+      const necks = [[t.ex, "left", t.el], ...(bridge ? [[t.from, "right", t.src]] : [])].map(([x, side, node]) => ({ x, side, node, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg) }));
       return { t, path, nodes, necks, cap: bridge ? (t.ex - t.from) / 2 : Infinity, r: { x: 0, v: 0 }, done: false };
     });
     paint();
@@ -235,7 +236,8 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       const d = hops(it);
       it.path.style.stroke = tone(d);
       it.path.style.strokeWidth = 1.5 + 0.5 * fade ** d;
-      for (const k of it.necks) k.p.style.fill = it.t.accent ? hot : tone(d);
+      // each neck takes the color of the card it pours into or out of
+      for (const k of it.necks) k.p.style.fill = it.t.accent ? hot : tone(depth(k.node));
     }
   };
   const setLit = (e) => {
