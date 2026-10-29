@@ -22,7 +22,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.5.0
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.6.0
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have
@@ -48,7 +48,10 @@ none), and the lockfile pins its integrity hash.
   from their left edge; ones further right are bridged from the target beside
   them.
 - `[data-trace-accent]`: the neck is always the lit color.
-- The lit target gets a `data-lit` attribute, so its border can light too.
+- The lit target gets a `data-lit` attribute. Every target gets
+  `--trace-tone` (the color for its distance from the lit one) and
+  `--trace-delay` (when its hop's fade starts), so borders can fade in step:
+  `border-color: var(--trace-tone, var(--trace)); transition: border-color 300ms var(--trace-delay, 0ms);`
 - Keep the root's children stacked above the trace (`position: relative`), and
   give cards a solid background. If sections have opaque backgrounds instead,
   lift the trace above them with `.connector-trace { z-index: 1 }`; it only
@@ -56,11 +59,12 @@ none), and the lockfile pins its integrity hash.
 
 Options: `near` (120), `draw` (160, px of scroll a branch takes to draw), `rest`
 and `lit` (neck radius, 12 and 18), `fade` (0.5, the share of lit color and
-swell each hop keeps), `reach` (0.7, how far down the viewport
+swell each hop keeps), `color` (300, ms a color change takes), `ripple` (60,
+ms each hop waits after the one before), `reach` (0.7, how far down the viewport
 the line has reached), `entry` (40, px below a card's top where its branch
 enters), `scroll` (true; false draws the whole trace at once), `tween` (0; in
-ms, swaps the springs for an eased tween that never overshoots, and sets the
-color transitions to the same duration).
+ms, swaps the springs for an eased tween that never overshoots, for the necks
+and nodes).
 
 ## Ink
 
@@ -84,7 +88,7 @@ For a design system that allows no overshoot and caps durations, for example
 200ms:
 
 ```js
-mountTrace(root, { scroll: false, tween: 120 });
+mountTrace(root, { scroll: false, tween: 120, color: 200, ripple: 0 });
 mountInk(box, { tween: 160, pour: 200 });
 ```
 

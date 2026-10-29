@@ -104,17 +104,21 @@ function place(e, root) {
 // connections it touches in full, and each hop further keeps only `fade` of the
 // lit color (mixed toward the trace color, so hue and saturation drain) and of
 // the neck swell. Each neck is colored by the card it meets, so a bridge pours
-// out of a lit card and into its neighbour's fainter color. It also sets `data-lit` on the target so the site can light
-// its border too. `root` must be positioned, and its children stacked above
-// the trace. Returns a function that unmounts it.
+// out of a lit card and into its neighbour's fainter color. Colors fade over
+// `color` ms, each hop `ripple` ms after the one before, so the change visibly
+// travels outward. It sets `data-lit` on the target, and on every target the
+// `--trace-tone` (its depth's color) and `--trace-delay` custom properties, so
+// the site can fade card borders in step. `root` must be positioned, and its
+// children stacked above the trace. Returns a function that unmounts it.
 //   [data-trace-origin]  where the spine starts (its center x)
 //   [data-trace]         a target
 //   [data-trace-accent]  a target whose neck is always the lit color
-export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, fade = 0.5, reach: ratio = 0.7, entry = 40, scroll = true, tween = 0 } = {}) {
+export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, fade = 0.5, color = 300, ripple = 60, reach: ratio = 0.7, entry = 40, scroll = true, tween = 0 } = {}) {
   const svg = el("svg", { "aria-hidden": "true", class: "connector-trace" });
   svg.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;overflow:visible";
   root.prepend(svg);
-  const ms = `${tween || 300}ms`; // color and node transitions
+  const ms = `${color}ms`; // color transitions
+  const grow = `${tween || 300}ms`; // node transitions
   const base = "var(--trace, currentColor)";
   const hot = "var(--trace-lit, currentColor)";
   let geo = null;
@@ -164,7 +168,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     items = targets.map((t) => {
       const bridge = t.from !== undefined;
       const path = el("path", { ...line, d: branch(bridge ? t.from : sx, t.ex, t.ey), style: `stroke:${base};transition:stroke ${ms},stroke-width ${ms}` }, svg);
-      const pop = `transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform ${ms} cubic-bezier(.22,1,.36,1)`;
+      const pop = `transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform ${grow} cubic-bezier(.22,1,.36,1)`;
       const nodes = bridge
         ? []
         : [el("circle", { cx: sx, cy: t.sy, r: 5, fill: "none", "stroke-width": 0.75, style: `stroke:${base};${pop}` }, svg), el("circle", { cx: sx, cy: t.sy, r: 2.5, style: `fill:${base};${pop}` }, svg)];
@@ -228,16 +232,21 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   };
   const depth = (node) => dist.get(node) ?? Infinity;
   const hops = (it) => Math.min(...ends(it).map(depth));
+  const lag = (d) => `${d === Infinity ? 0 : n(d * ripple)}ms`;
   const tone = (d) => (d === Infinity ? base : `color-mix(in oklch, ${hot} ${n(100 * fade ** d)}%, ${base})`);
   const paint = () => {
     walk();
-    if (spine) spine.style.stroke = tone(depth(SPINE));
+    if (spine) Object.assign(spine.style, { stroke: tone(depth(SPINE)), transitionDelay: lag(depth(SPINE)) });
     for (const it of items) {
       const d = hops(it);
-      it.path.style.stroke = tone(d);
-      it.path.style.strokeWidth = 1.5 + 0.5 * fade ** d;
+      Object.assign(it.path.style, { stroke: tone(d), strokeWidth: 1.5 + 0.5 * fade ** d, transitionDelay: lag(d) });
       // each neck takes the color of the card it pours into or out of
-      for (const k of it.necks) k.p.style.fill = it.t.accent ? hot : tone(depth(k.node));
+      for (const k of it.necks) Object.assign(k.p.style, { fill: it.t.accent ? hot : tone(depth(k.node)), transitionDelay: lag(depth(k.node)) });
+      for (const e of ends(it)) {
+        if (e === SPINE) continue;
+        e.style.setProperty("--trace-tone", tone(depth(e)));
+        e.style.setProperty("--trace-delay", lag(depth(e)));
+      }
     }
   };
   const setLit = (e) => {
@@ -273,6 +282,10 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     removeEventListener("resize", update);
     motion.stop();
     litEl?.removeAttribute("data-lit");
+    for (const e of root.querySelectorAll("[data-trace]")) {
+      e.style.removeProperty("--trace-tone");
+      e.style.removeProperty("--trace-delay");
+    }
     svg.remove();
   };
 }
