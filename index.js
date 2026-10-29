@@ -84,15 +84,29 @@ function loop(tick) {
   };
 }
 
-// position in `root`, ignoring transforms (an element mid-reveal is still offset)
+// position in `root` to the subpixel (offsetLeft and friends round, leaving
+// half-pixel gaps at necks), less any translation on the way up, so an element
+// mid-reveal or mid-hover is placed where it comes to rest.
+// ponytail: translations only; a scaled or rotated ancestor would skew this.
 function place(e, root) {
-  let x = 0;
-  let y = 0;
-  for (let o = e; o && o !== root; o = o.offsetParent) {
-    x += o.offsetLeft;
-    y += o.offsetTop;
+  const r = e.getBoundingClientRect();
+  const o = root.getBoundingClientRect();
+  let x = r.left - o.left - root.clientLeft;
+  let y = r.top - o.top - root.clientTop;
+  for (let a = e; a && a !== root; a = a.parentElement) {
+    const s = getComputedStyle(a);
+    if (s.transform !== "none") {
+      const m = new DOMMatrix(s.transform);
+      x -= m.m41;
+      y -= m.m42;
+    }
+    if (s.translate !== "none") {
+      const [tx = 0, ty = 0] = s.translate.split(" ").map(parseFloat);
+      x -= tx;
+      y -= ty;
+    }
   }
-  return { x, y, w: e.offsetWidth, h: e.offsetHeight };
+  return { x, y, w: r.width, h: r.height };
 }
 
 // MARK: Trace
@@ -206,7 +220,9 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
         const to = !it.done ? 0 : wait ? k.held : k.goal;
         if (still()) k.r.x = to;
         else moving = move(k.r, to, dt, t, { tween, k: 260, c: 11 }) || wait || moving;
-        k.p.setAttribute("d", neck(k.x, it.t.ey, clamp(k.r.x, 0, it.cap), k.side));
+        // the tip bleeds 1px into the card, under (or onto) its same-toned
+        // border, so no antialiased seam shows where the two edges meet
+        k.p.setAttribute("d", neck(k.x + (k.side === "left" ? 1 : -1), it.t.ey, clamp(k.r.x, 0, it.cap), k.side));
       }
     }
     return moving;
