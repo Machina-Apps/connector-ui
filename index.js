@@ -117,8 +117,9 @@ function place(e, root) {
 // as far as the reader has scrolled, and never undraws. Hovering, focusing or
 // tapping a target lights the whole connected trace by distance: the
 // connections it touches in full, and each hop further keeps only `fade` of the
-// lit color (mixed toward the trace color, so hue and saturation drain);
-// every lit neck swells alike. Each neck is colored by the card it meets, so a bridge pours
+// lit color (mixed toward the trace color, so hue and saturation drain) and
+// of the swell. Every neck on the lit card swells fully; each neck is sized
+// and colored by the card it meets, so a bridge pours
 // out of a lit card and into its neighbour's fainter color. Colors fade over
 // `color` ms, each hop `ripple` ms after the one before, so the change visibly
 // travels outward. It sets `data-lit` on the target, and on every target the
@@ -277,7 +278,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       }
       // each neck takes the color and swell of the card it pours into or out of
       for (const k of it.necks) {
-        const goal = depth(k.node) === Infinity ? rest : lit; // every lit neck swells fully; only color fades by depth
+        const goal = rest + (lit - rest) * fade ** depth(k.node); // full on the lit card's own necks, less each hop out
         Object.assign(k.p.style, { fill: it.t.accent ? hot : tone(depth(k.node)), transitionDelay: lag(depth(k.node, from)) });
         if (goal !== k.goal) Object.assign(k, { held: now < k.at ? k.held : k.goal, goal, at: now + wait(depth(k.node, from)) });
       }

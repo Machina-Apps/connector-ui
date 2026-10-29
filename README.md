@@ -9,7 +9,8 @@ ink as possible. Plain DOM and SVG, no framework, no dependencies. Used by
   bridged across the gap, necked at both ends. It draws once as the reader
   scrolls and never undraws; hovering, focusing or tapping a card lights the
   whole connected trace by distance: the connections it touches in full, each
-  hop further with less hue and saturation; every lit neck swells alike. Each neck takes the
+  hop further with less hue, saturation and swell. Every neck on the lit card
+  swells fully, bridges included. Each neck takes the
   color of the card it meets, so a bridge pours out of the lit card and into
   its neighbour's fainter color. Everything ripples: each hop's lines,
   junctions, necks and card borders start `ripple` ms after the hop before,
@@ -24,7 +25,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.7.2
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.7.3
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have
@@ -60,8 +61,8 @@ none), and the lockfile pins its integrity hash.
   draws in gutters and gaps, and ignores the pointer.
 
 Options: `near` (120), `draw` (160, px of scroll a branch takes to draw), `rest`
-and `lit` (neck radius, 12 and 18), `fade` (0.5, the share of lit color each
-hop keeps), `color` (300, ms a color change takes), `ripple` (60,
+and `lit` (neck radius, 12 and 18), `fade` (0.5, the share of lit color and
+swell each hop keeps), `color` (300, ms a color change takes), `ripple` (60,
 ms each hop waits after the one before), `reach` (0.7, how far down the viewport
 the line has reached), `entry` (40, px below a card's top where its branch
 enters), `scroll` (true; false draws the whole trace at once), `tween` (0; in
