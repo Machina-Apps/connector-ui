@@ -19,8 +19,11 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add github:mambattu-dev/connector-ui#v0.2.0
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.2.0
 ```
+
+The release tarball needs no `git` at install time (slim Docker images have
+none), and the lockfile pins its integrity hash.
 
 ## Trace
 
