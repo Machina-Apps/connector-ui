@@ -25,7 +25,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.7.3
+pnpm add https://codeload.github.com/Machina-Apps/connector-ui/tar.gz/v0.7.3
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have

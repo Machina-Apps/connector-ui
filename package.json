@@ -8,5 +8,5 @@
   "scripts": { "check": "node check.mjs" },
   "license": "MIT",
   "author": "Mambattu",
-  "repository": "github:mambattu-dev/connector-ui"
+  "repository": "github:Machina-Apps/connector-ui"
 }
