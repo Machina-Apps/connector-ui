@@ -20,13 +20,14 @@ function el(tag, attrs, parent) {
 
 // MARK: Geometry
 // The liquid neck where a trace meets a card edge at (ex, ey): a filled
-// trumpet, zero wide r from the edge and 2r wide at it. The quadratics' control
-// point is the entry itself, so the sides sag inward (concave) like a pour.
-// `side` is where the trace comes from: "left" enters a card's left edge,
-// "right" leaves a card's right edge (a bridge to its neighbour).
-export function neck(ex, ey, r, side) {
+// trumpet, zero wide r from the edge and 2w wide at it (w defaults to r; a
+// bridge's necks are shorter than they are wide so they fit its gap). The
+// quadratics' control point is the entry itself, so the sides sag inward
+// (concave) like a pour. `side` is where the trace comes from: "left" enters a
+// card's left edge, "right" leaves a card's right edge (a bridge to its neighbour).
+export function neck(ex, ey, r, side, w = r) {
   const [x, y, a] = [n(ex), n(ey), n(side === "left" ? ex - r : ex + r)];
-  return `M${a} ${y} Q${x} ${y} ${x} ${n(ey - r)} V${n(ey + r)} Q${x} ${y} ${a} ${y} Z`;
+  return `M${a} ${y} Q${x} ${y} ${x} ${n(ey - w)} V${n(ey + w)} Q${x} ${y} ${a} ${y} Z`;
 }
 
 // A level hairline from (sx, y) to the entry at (ex, y).
@@ -116,8 +117,8 @@ function place(e, root) {
 // as far as the reader has scrolled, and never undraws. Hovering, focusing or
 // tapping a target lights the whole connected trace by distance: the
 // connections it touches in full, and each hop further keeps only `fade` of the
-// lit color (mixed toward the trace color, so hue and saturation drain) and of
-// the neck swell. Each neck is colored by the card it meets, so a bridge pours
+// lit color (mixed toward the trace color, so hue and saturation drain);
+// every lit neck swells alike. Each neck is colored by the card it meets, so a bridge pours
 // out of a lit card and into its neighbour's fainter color. Colors fade over
 // `color` ms, each hop `ripple` ms after the one before, so the change visibly
 // travels outward. It sets `data-lit` on the target, and on every target the
@@ -222,7 +223,9 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
         else moving = move(k.r, to, dt, t, { tween, k: 260, c: 11 }) || wait || moving;
         // the tip bleeds 1px into the card, under (or onto) its same-toned
         // border, so no antialiased seam shows where the two edges meet
-        k.p.setAttribute("d", neck(k.x + (k.side === "left" ? 1 : -1), it.t.ey, clamp(k.r.x, 0, it.cap), k.side));
+        // the length stays within half a bridge's gap; the swell (width) never caps
+        const r = Math.max(k.r.x, 0);
+        k.p.setAttribute("d", neck(k.x + (k.side === "left" ? 1 : -1), it.t.ey, Math.min(r, it.cap), k.side, r));
       }
     }
     return moving;
@@ -274,7 +277,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       }
       // each neck takes the color and swell of the card it pours into or out of
       for (const k of it.necks) {
-        const goal = rest + (lit - rest) * fade ** depth(k.node);
+        const goal = depth(k.node) === Infinity ? rest : lit; // every lit neck swells fully; only color fades by depth
         Object.assign(k.p.style, { fill: it.t.accent ? hot : tone(depth(k.node)), transitionDelay: lag(depth(k.node, from)) });
         if (goal !== k.goal) Object.assign(k, { held: now < k.at ? k.held : k.goal, goal, at: now + wait(depth(k.node, from)) });
       }
