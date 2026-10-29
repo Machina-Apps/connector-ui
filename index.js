@@ -100,14 +100,16 @@ function place(e, root) {
 // target with a liquid neck. A target more than `near` px right of the spine is
 // bridged from the target beside it in its row instead. The line draws once,
 // as far as the reader has scrolled, and never undraws. Hovering, focusing or
-// tapping a target lights every connection it touches (the branch into it and
-// any bridge out of it) and swells their necks, and sets `data-lit`
-// on it so the site can light its border too. `root` must be positioned, and
-// its children stacked above the trace. Returns a function that unmounts it.
+// tapping a target lights the whole connected trace by distance: the
+// connections it touches in full, and each hop further keeps only `fade` of the
+// lit color (mixed toward the trace color, so hue and saturation drain) and of
+// the neck swell. It also sets `data-lit` on the target so the site can light
+// its border too. `root` must be positioned, and its children stacked above
+// the trace. Returns a function that unmounts it.
 //   [data-trace-origin]  where the spine starts (its center x)
 //   [data-trace]         a target
 //   [data-trace-accent]  a target whose neck is always the lit color
-export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, reach: ratio = 0.7, entry = 40, scroll = true, tween = 0 } = {}) {
+export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, fade = 0.5, reach: ratio = 0.7, entry = 40, scroll = true, tween = 0 } = {}) {
   const svg = el("svg", { "aria-hidden": "true", class: "connector-trace" });
   svg.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;overflow:visible";
   root.prepend(svg);
@@ -157,7 +159,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     items = [];
     if (!targets.length) return;
     const line = { fill: "none", "stroke-width": 1.5, "stroke-linecap": "round", pathLength: 1, "stroke-dasharray": 1, "stroke-dashoffset": 1 };
-    spine = el("path", { ...line, d: `M${sx} ${y0}V${targets.at(-1).sy}`, style: `stroke:${base}` }, svg);
+    spine = el("path", { ...line, d: `M${sx} ${y0}V${targets.at(-1).sy}`, style: `stroke:${base};transition:stroke ${ms}` }, svg);
     items = targets.map((t) => {
       const bridge = t.from !== undefined;
       const path = el("path", { ...line, d: branch(bridge ? t.from : sx, t.ex, t.ey), style: `stroke:${base};transition:stroke ${ms},stroke-width ${ms}` }, svg);
@@ -168,7 +170,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       const necks = [[t.ex, "left"], ...(bridge ? [[t.from, "right"]] : [])].map(([x, side]) => ({ x, side, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg) }));
       return { t, path, nodes, necks, cap: bridge ? (t.ex - t.from) / 2 : Infinity, r: { x: 0, v: 0 }, done: false };
     });
-    for (const it of items) light(it);
+    paint();
   };
 
   // MARK: Draw
@@ -193,7 +195,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   const motion = loop((dt, t) => {
     let moving = false;
     for (const it of items) {
-      const to = !it.done ? 0 : touches(it) ? lit : rest;
+      const to = !it.done ? 0 : rest + (lit - rest) * fade ** hops(it);
       if (still()) it.r.x = to;
       else moving = move(it.r, to, dt, t, { tween, k: 260, c: 11 }) || moving;
       const r = clamp(it.r.x, 0, it.cap);
@@ -203,20 +205,45 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   });
 
   // MARK: Lighting
-  // decorative only: one target lit at a time, with every connection it touches
-  const touches = (it) => litEl !== null && (it.t.el === litEl || it.t.src === litEl);
-  const light = (it) => {
-    const on = touches(it);
-    it.path.style.stroke = on ? hot : base;
-    it.path.style.strokeWidth = on ? 2 : 1.5;
-    for (const k of it.necks) k.p.style.fill = on || it.t.accent ? hot : base;
+  // decorative only: one target lit at a time. The trace is a graph whose nodes
+  // are targets plus the spine (every branch meets it); a connection's depth is
+  // the hop count from the lit target to its nearer end, Infinity when unlit.
+  const SPINE = {};
+  const ends = (it) => [it.t.src ?? SPINE, it.t.el];
+  let dist = new Map();
+  const walk = () => {
+    dist = new Map(litEl ? [[litEl, 0]] : []);
+    for (const q = [...dist.keys()]; q.length; ) {
+      const v = q.shift();
+      for (const it of items) {
+        const [a, b] = ends(it);
+        const w = a === v ? b : b === v ? a : null;
+        if (w !== null && !dist.has(w)) {
+          dist.set(w, dist.get(v) + 1);
+          q.push(w);
+        }
+      }
+    }
+  };
+  const depth = (node) => dist.get(node) ?? Infinity;
+  const hops = (it) => Math.min(...ends(it).map(depth));
+  const tone = (d) => (d === Infinity ? base : `color-mix(in oklch, ${hot} ${n(100 * fade ** d)}%, ${base})`);
+  const paint = () => {
+    walk();
+    if (spine) spine.style.stroke = tone(depth(SPINE));
+    for (const it of items) {
+      const d = hops(it);
+      it.path.style.stroke = tone(d);
+      it.path.style.strokeWidth = 1.5 + 0.5 * fade ** d;
+      for (const k of it.necks) k.p.style.fill = it.t.accent ? hot : tone(d);
+    }
   };
   const setLit = (e) => {
     if (e === litEl) return;
     litEl?.removeAttribute("data-lit");
     litEl = e;
     litEl?.setAttribute("data-lit", "");
-    items.forEach(light);
+    paint();
     motion.kick();
   };
   const at = (e) => e.target.closest?.("[data-trace]") ?? null;

@@ -7,9 +7,9 @@ ink as possible. Plain DOM and SVG, no framework, no dependencies. Used by
 - **Trace:** one hairline from an origin element down the page's gutter,
   branching into each card through a liquid neck. A card beside another is
   bridged across the gap, necked at both ends. It draws once as the reader
-  scrolls and never undraws; hovering, focusing or tapping a card lights every
-  connection it touches (the branch into it and any bridge out of it) and
-  swells their necks.
+  scrolls and never undraws; hovering, focusing or tapping a card lights the
+  whole connected trace by distance: the connections it touches in full, each
+  hop further with less hue, saturation and neck swell.
 - **Ink:** the selected chip, tab or link is liquid ink. When the selection
   changes, the old item gathers into a drop on the side facing the new one,
   pinches off and follows the ink in.
@@ -20,7 +20,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.3.0
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.4.0
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have
@@ -53,7 +53,8 @@ none), and the lockfile pins its integrity hash.
   draws in gutters and gaps, and ignores the pointer.
 
 Options: `near` (120), `draw` (160, px of scroll a branch takes to draw), `rest`
-and `lit` (neck radius, 12 and 18), `reach` (0.7, how far down the viewport
+and `lit` (neck radius, 12 and 18), `fade` (0.5, the share of lit color and
+swell each hop keeps), `reach` (0.7, how far down the viewport
 the line has reached), `entry` (40, px below a card's top where its branch
 enters), `scroll` (true; false draws the whole trace at once), `tween` (0; in
 ms, swaps the springs for an eased tween that never overshoots, and sets the
