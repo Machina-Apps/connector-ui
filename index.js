@@ -168,12 +168,12 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     items = targets.map((t) => {
       const bridge = t.from !== undefined;
       const path = el("path", { ...line, d: branch(bridge ? t.from : sx, t.ex, t.ey), style: `stroke:${base};transition:stroke ${ms},stroke-width ${ms}` }, svg);
-      const pop = `transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform ${grow} cubic-bezier(.22,1,.36,1)`;
+      const pop = `transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform ${grow} cubic-bezier(.22,1,.36,1),stroke ${ms},fill ${ms}`;
       const nodes = bridge
         ? []
         : [el("circle", { cx: sx, cy: t.sy, r: 5, fill: "none", "stroke-width": 0.75, style: `stroke:${base};${pop}` }, svg), el("circle", { cx: sx, cy: t.sy, r: 2.5, style: `fill:${base};${pop}` }, svg)];
-      const necks = [[t.ex, "left", t.el], ...(bridge ? [[t.from, "right", t.src]] : [])].map(([x, side, node]) => ({ x, side, node, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg) }));
-      return { t, path, nodes, necks, cap: bridge ? (t.ex - t.from) / 2 : Infinity, r: { x: 0, v: 0 }, done: false };
+      const necks = [[t.ex, "left", t.el], ...(bridge ? [[t.from, "right", t.src]] : [])].map(([x, side, node]) => ({ x, side, node, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg), r: { x: 0, v: 0 }, goal: rest, held: rest, at: 0 }));
+      return { t, path, nodes, necks, cap: bridge ? (t.ex - t.from) / 2 : Infinity, done: false };
     });
     paint();
   };
@@ -200,11 +200,14 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   const motion = loop((dt, t) => {
     let moving = false;
     for (const it of items) {
-      const to = !it.done ? 0 : rest + (lit - rest) * fade ** hops(it);
-      if (still()) it.r.x = to;
-      else moving = move(it.r, to, dt, t, { tween, k: 260, c: 11 }) || moving;
-      const r = clamp(it.r.x, 0, it.cap);
-      for (const k of it.necks) k.p.setAttribute("d", neck(k.x, it.t.ey, r, k.side));
+      for (const k of it.necks) {
+        // a neck keeps its old swell until its hop's turn in the ripple
+        const wait = !still() && t < k.at;
+        const to = !it.done ? 0 : wait ? k.held : k.goal;
+        if (still()) k.r.x = to;
+        else moving = move(k.r, to, dt, t, { tween, k: 260, c: 11 }) || wait || moving;
+        k.p.setAttribute("d", neck(k.x, it.t.ey, clamp(k.r.x, 0, it.cap), k.side));
+      }
     }
     return moving;
   });
@@ -230,22 +233,39 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
       }
     }
   };
-  const depth = (node) => dist.get(node) ?? Infinity;
-  const hops = (it) => Math.min(...ends(it).map(depth));
-  const lag = (d) => `${d === Infinity ? 0 : n(d * ripple)}ms`;
+  const depth = (node, m = dist) => m.get(node) ?? Infinity;
+  const hops = (it, m = dist) => Math.min(...ends(it).map((e) => depth(e, m)));
+  const wait = (d) => (d === Infinity ? 0 : d * ripple);
+  const lag = (d) => `${n(wait(d))}ms`;
   const tone = (d) => (d === Infinity ? base : `color-mix(in oklch, ${hot} ${n(100 * fade ** d)}%, ${base})`);
+  // Every change (line, junction, neck color and swell, card border) waits its
+  // hop's turn: `ripple` ms per hop from the lit target, or, when unlighting,
+  // from the target that was lit, so the fade back ripples out the same way.
   const paint = () => {
+    const was = dist;
     walk();
-    if (spine) Object.assign(spine.style, { stroke: tone(depth(SPINE)), transitionDelay: lag(depth(SPINE)) });
+    const from = litEl ? dist : was;
+    const now = performance.now();
+    if (spine) Object.assign(spine.style, { stroke: tone(depth(SPINE)), transitionDelay: lag(depth(SPINE, from)) });
     for (const it of items) {
       const d = hops(it);
-      Object.assign(it.path.style, { stroke: tone(d), strokeWidth: 1.5 + 0.5 * fade ** d, transitionDelay: lag(d) });
-      // each neck takes the color of the card it pours into or out of
-      for (const k of it.necks) Object.assign(k.p.style, { fill: it.t.accent ? hot : tone(depth(k.node)), transitionDelay: lag(depth(k.node)) });
+      const delay = lag(hops(it, from));
+      Object.assign(it.path.style, { stroke: tone(d), strokeWidth: 1.5 + 0.5 * fade ** d, transitionDelay: delay });
+      const [ring, dot] = it.nodes;
+      if (ring) {
+        Object.assign(ring.style, { stroke: tone(d), transitionDelay: delay });
+        Object.assign(dot.style, { fill: tone(d), transitionDelay: delay });
+      }
+      // each neck takes the color and swell of the card it pours into or out of
+      for (const k of it.necks) {
+        const goal = rest + (lit - rest) * fade ** depth(k.node);
+        Object.assign(k.p.style, { fill: it.t.accent ? hot : tone(depth(k.node)), transitionDelay: lag(depth(k.node, from)) });
+        if (goal !== k.goal) Object.assign(k, { held: now < k.at ? k.held : k.goal, goal, at: now + wait(depth(k.node, from)) });
+      }
       for (const e of ends(it)) {
         if (e === SPINE) continue;
         e.style.setProperty("--trace-tone", tone(depth(e)));
-        e.style.setProperty("--trace-delay", lag(depth(e)));
+        e.style.setProperty("--trace-delay", lag(depth(e, from)));
       }
     }
   };

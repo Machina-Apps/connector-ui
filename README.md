@@ -11,7 +11,9 @@ ink as possible. Plain DOM and SVG, no framework, no dependencies. Used by
   whole connected trace by distance: the connections it touches in full, each
   hop further with less hue, saturation and neck swell. Each neck takes the
   color of the card it meets, so a bridge pours out of the lit card and into
-  its neighbour's fainter color.
+  its neighbour's fainter color. Everything ripples: each hop's lines,
+  junctions, necks and card borders start `ripple` ms after the hop before,
+  and the fade back on leaving ripples out from the same card.
 - **Ink:** the selected chip, tab or link is liquid ink. When the selection
   changes, the old item gathers into a drop on the side facing the new one,
   pinches off and follows the ink in.
@@ -22,7 +24,7 @@ never the only place information lives.
 ## Install
 
 ```sh
-pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.6.0
+pnpm add https://codeload.github.com/mambattu-dev/connector-ui/tar.gz/v0.7.0
 ```
 
 The release tarball needs no `git` at install time (slim Docker images have
