@@ -43,6 +43,16 @@ function spring(s, to, dt, k, c) {
   return false;
 }
 
+// one step of a value toward `to`: a damped spring, or, given `tween` ms, an
+// eased tween that never overshoots; false once it has settled
+function move(m, to, dt, t, { tween, k, c }) {
+  if (!tween) return spring(m, to, dt, k, c);
+  if (m.to !== to) Object.assign(m, { from: m.x, to, t0: t });
+  const p = clamp((t - m.t0) / tween, 0, 1);
+  m.x = m.from + (to - m.from) * ease(p);
+  return p < 1;
+}
+
 // keyframes of plain objects over `dur` ms; null once finished
 function keyframes(a, t) {
   const p = clamp((t - a.delay) / a.dur, 0, 1);
@@ -96,10 +106,11 @@ function place(e, root) {
 //   [data-trace-origin]  where the spine starts (its center x)
 //   [data-trace]         a target
 //   [data-trace-accent]  a target whose neck is always the lit color
-export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, reach: ratio = 0.7, entry = 40 } = {}) {
-  const svg = el("svg", { "aria-hidden": "true" });
+export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, reach: ratio = 0.7, entry = 40, scroll = true, tween = 0 } = {}) {
+  const svg = el("svg", { "aria-hidden": "true", class: "connector-trace" });
   svg.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;overflow:visible";
   root.prepend(svg);
+  const ms = `${tween || 300}ms`; // color and node transitions
   const base = "var(--trace, currentColor)";
   const hot = "var(--trace-lit, currentColor)";
   let geo = null;
@@ -148,12 +159,12 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     spine = el("path", { ...line, d: `M${sx} ${y0}V${targets.at(-1).sy}`, style: `stroke:${base}` }, svg);
     items = targets.map((t) => {
       const bridge = t.from !== undefined;
-      const path = el("path", { ...line, d: branch(bridge ? t.from : sx, t.ex, t.ey), style: `stroke:${base};transition:stroke .3s,stroke-width .3s` }, svg);
-      const pop = "transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform .35s cubic-bezier(.22,1,.36,1)";
+      const path = el("path", { ...line, d: branch(bridge ? t.from : sx, t.ex, t.ey), style: `stroke:${base};transition:stroke ${ms},stroke-width ${ms}` }, svg);
+      const pop = `transform-box:fill-box;transform-origin:center;transform:scale(0);transition:transform ${ms} cubic-bezier(.22,1,.36,1)`;
       const nodes = bridge
         ? []
         : [el("circle", { cx: sx, cy: t.sy, r: 5, fill: "none", "stroke-width": 0.75, style: `stroke:${base};${pop}` }, svg), el("circle", { cx: sx, cy: t.sy, r: 2.5, style: `fill:${base};${pop}` }, svg)];
-      const necks = [[t.ex, "left"], ...(bridge ? [[t.from, "right"]] : [])].map(([x, side]) => ({ x, side, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill .3s` }, svg) }));
+      const necks = [[t.ex, "left"], ...(bridge ? [[t.from, "right"]] : [])].map(([x, side]) => ({ x, side, p: el("path", { style: `fill:${t.accent ? hot : base};transition:fill ${ms}` }, svg) }));
       return { t, path, nodes, necks, cap: bridge ? (t.ex - t.from) / 2 : Infinity, r: { x: 0, v: 0 }, done: false };
     });
     for (const it of items) light(it);
@@ -162,7 +173,7 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
   // MARK: Draw
   const update = () => {
     if (!spine) return;
-    reach = still() ? Infinity : Math.max(reach, scrollY + innerHeight * ratio - geo.top);
+    reach = still() || !scroll ? Infinity : Math.max(reach, scrollY + innerHeight * ratio - geo.top);
     const { y0, targets } = geo;
     spine.style.strokeDashoffset = 1 - clamp((reach - y0) / (targets.at(-1).sy - y0 || 1), 0, 1);
     let moved = false;
@@ -178,12 +189,12 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
     if (moved || still()) motion.kick();
   };
 
-  const motion = loop((dt) => {
+  const motion = loop((dt, t) => {
     let moving = false;
     for (const it of items) {
       const to = !it.done ? 0 : it.t.el === litEl ? lit : rest;
       if (still()) it.r.x = to;
-      else moving = spring(it.r, to, dt, 260, 11) || moving;
+      else moving = move(it.r, to, dt, t, { tween, k: 260, c: 11 }) || moving;
       const r = clamp(it.r.x, 0, it.cap);
       for (const k of it.necks) k.p.setAttribute("d", neck(k.x, it.t.ey, r, k.side));
     }
@@ -242,10 +253,10 @@ export function mountTrace(root, { near = 120, draw = 160, rest = 12, lit = 18, 
 // the head and is absorbed. A goo filter fuses them, so a neck stretches out
 // of the old item and pinches off: the direction of the change reads at any
 // distance. Labels stay above, unfiltered. Returns { select(index | null), destroy() }.
-export function mountInk(box, { selected = null, radius = 8, blur = 6 } = {}) {
+export function mountInk(box, { selected = null, radius = 8, blur = 6, tween = 0, pour = 700 } = {}) {
   if (getComputedStyle(box).position === "static") box.style.position = "relative";
   box.style.isolation = "isolate";
-  const svg = el("svg", { "aria-hidden": "true" });
+  const svg = el("svg", { "aria-hidden": "true", class: "connector-ink" });
   svg.style.cssText = "position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:-1";
   const id = `ink-${Math.random().toString(36).slice(2)}`;
   const f = el("filter", { id, x: "-20%", y: "-20%", width: "140%", height: "140%" }, el("defs", {}, svg));
@@ -274,12 +285,13 @@ export function mountInk(box, { selected = null, radius = 8, blur = 6 } = {}) {
     e.setAttribute("height", Math.max(v.h, 0));
     if (rx !== undefined) e.setAttribute("rx", Math.max(rx, 0));
   };
-  const jump = (v) => KEYS.forEach((k) => Object.assign(head[k], { x: v[k], v: 0 }));
+  // snap: at rest on v, whichever of spring or tween moves it next
+  const jump = (v) => KEYS.forEach((k) => Object.assign(head[k], { x: v[k], v: 0, to: v[k], from: v[k], t0: -Infinity }));
   const headNow = () => Object.fromEntries(KEYS.map((k) => [k, head[k].x]));
 
   const motion = loop((dt, t) => {
     let moving = false;
-    if (target) for (const k of KEYS) moving = spring(head[k], target[k], dt, 260, 28) || moving;
+    if (target) for (const k of KEYS) moving = move(head[k], target[k], dt, t, { tween, k: 260, c: 28 }) || moving;
     if (retract) {
       const { v, done } = keyframes(retract, t - retract.t0);
       jump(v);
@@ -317,7 +329,7 @@ export function mountInk(box, { selected = null, radius = 8, blur = 6 } = {}) {
     if (!B) {
       // cleared: the ink draws back into a dot where it was
       target = null;
-      retract = { t0, delay: 0, dur: 550, times: [0, 1], frames: [headNow(), dot(rects[last] ?? headNow())] };
+      retract = { t0, delay: 0, dur: tween || 550, times: [0, 1], frames: [headNow(), dot(rects[last] ?? headNow())] };
     } else {
       if (!A) jump(dot(B)); // first pick: grow from the new item's center
       target = B;
@@ -329,8 +341,8 @@ export function mountInk(box, { selected = null, radius = 8, blur = 6 } = {}) {
       const d = Math.min(A.h, B.h) * 0.6;
       tail = {
         t0,
-        delay: 40,
-        dur: 700,
+        delay: tween ? 0 : 40,
+        dur: pour,
         times: [0, 0.35, 1],
         frames: [
           { ...A, rx: radius },
